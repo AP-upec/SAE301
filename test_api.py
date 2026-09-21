@@ -14,8 +14,4 @@ def test_open_meteo():
     print("Status:", response.status_code)
     data = response.json()
 
-    # Afficher les 5 premières valeurs
-    print("Exemple de données:", data["hourly"]["temperature_2m"][:5])
-
-if __name__ == "__main__":
-    test_open_meteo()
+    return data
