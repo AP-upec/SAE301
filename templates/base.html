@@ -1,19 +1,21 @@
 <!DOCTYPE html>
 <html lang="fr">
-	<head>
-		<meta charset="UTF-8">
-		<title>SAE 3.01</title>
-		<link rel="stylesheet" href="css/design.css">
+    <head>
+        <meta charset="UTF-8">
+        <title>{% block titre %}Climature{% endblock %}</title>
+        <!-- Préfixe de l'application : vide en local, "/sae201_b1" en prod (pour les fetch JS) -->
     </head>
     <body>
-		<header>
-		
-		</header>
-		<main>
-			<h1>Hello World!</h1>
-		</main>
-       	<footer>
-            <p>SAE3.01 · BUT Informatique · IUT Créteil-Vitry</p>
-		</footer> 
-    </body>
+        <header>
+            <h1><a href="{{ url_for('accueil.afficher') }}" class="{{ 'actif' if request.endpoint == 'accueil.afficher' }}">Climature</a></h1>
+            <nav>
+            </nav>
+        </header>
+        <main>
+            {% block contenu %}{% endblock %}
+        </main>
+        <footer>
+            <p>Données issues de l'<a href="https://open-meteo.com/ target="_blank" rel="noopener">API Open Data de Open-Meteo (open-meteo.com)</a></p>
+        </footer>
+        </body>
 </html>
