@@ -3,20 +3,22 @@
 {% block titre %}Accueil{% endblock %}
 
 {% block contenu %}
-    <h2>Bienvenue !</h2>
-    <p>La base contient {{ regions|length }} régions et {{ professions|length }}
-    professions.</p>
-
-    <h3>Régions</h3>
-    <ul>
-        {% for region in regions %}
-            <li>{{ region.code }} – {{ region.libelle }}</li>
-        {% endfor %}
-    </ul>
-    <h3>Professions</h3>
-    <ul>
-        {% for prof in professions %}
-            <li>{{ prof.libelle }}</li>
-        {% endfor %}
-    </ul>
+	<!DOCTYPE html>
+	<html lang="fr">
+		<head>
+			<meta charset="UTF-8">
+			<!-- <link rel="stylesheet" href="css/design.css"> -->
+		</head>
+		<body>
+			<header>
+			
+			</header>
+			<main>
+				<p><a href="{{ url_for('teste.afficher') }}" class="{{ 'actif' if request.endpoint == 'teste.afficher' }}">Météo Paris</a></p>
+			</main>
+			<footer>
+				<p>SAE3.01 · BUT Informatique · IUT Créteil-Vitry · Data : Kouyate, Rakotoharisoa, Settouraman · Dev : Hamilcaro, Piscitello, Ratovonomenjanahary</p>
+			</footer> 
+		</body>
+	</html>
 {% endblock %}
