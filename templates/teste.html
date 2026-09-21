@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block titre %}Météo Paris{% endblock %}
+
+{% block contenu %}
+<!DOCTYPE html>
+    <html lang="fr">
+        <head>
+            <meta charset="UTF-8">
+            <title>Test</title>
+        </head>
+        <body>
+            <h1>Météo Paris</h1>
+
+            <p>Température : {{ meteo.hourly.temperature_2m[0] }} °C</p>
+        </body>
+    </html>
+{% endblock %}
