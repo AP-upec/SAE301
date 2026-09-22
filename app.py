@@ -4,7 +4,7 @@ from flask import Flask
 from config import Config
 
 from controllers.accueil import bp_accueil
-from controllers.teste import bp_teste
+from controllers.meteo_paris import bp_meteo_paris
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -39,7 +39,7 @@ if _prefix:
 
 # Enregistrement des contrôleurs (blueprints)
 app.register_blueprint(bp_accueil)
-app.register_blueprint(bp_teste)
+app.register_blueprint(bp_meteo_paris)
 
 @app.context_processor
 def inject_base_url():
