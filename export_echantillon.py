@@ -4,7 +4,7 @@ from urllib.parse import urlencode
 from urllib.request import urlopen
 
 # Échantillon : Reims, 7 jours, un seul modèle.
-# Format de sortie : partie A du contrat d'interface v1.1 (22/11/2026).
+# Format de sortie : partie A du contrat d'interface v1.3
 CODE_INSEE = "51454"        # texte sur 5 caractères, jamais un nombre
 MODELE = "MRI_AGCM3_2_S"    # le modèle n'est pas dans la série (voir le nom du fichier)
 

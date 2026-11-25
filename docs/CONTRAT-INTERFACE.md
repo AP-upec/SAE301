@@ -1,8 +1,8 @@
 # Contrat d'interface DEV ↔ DATA
 
 - **Projet :** SAÉ 3.01 « Climat & Cultures » — Équipe 06
-- **Version :** v1.2
-- **Date :** 24/11/2026
+- **Version :** v1.3
+- **Date :** 25/11/2026
 - **Statut :** Validé ensemble (DEV + DATA) — Jalon 2
 
 Ce document définit **ce que DEV et DATA s'échangent** et **comment** : les colonnes, la fonction à appeler, les règles de calcul, les erreurs, la structure de `Fact_Indicateur`, l'identité de l'utilisateur (RGPD), et les jeux de test validés. Si une règle change, on modifie **ce fichier d'abord**, puis le code.
@@ -12,7 +12,8 @@ Ce document définit **ce que DEV et DATA s'échangent** et **comment** : les co
 |---|---|---|---|
 | v1.0 | 12/11/2026 | Équipe 06 | Version initiale du contrat d'interface (J2) |
 | v1.1 | 22/11/2026 | Équipe 06 (DATA + DEV) | Uniformisation `code_insee`, alignement structure `Fact_Indicateur` (moyennes par horizon), ajout des cas limites (année sans gel, canicule, multi-années), validation des décisions |
-v1.2 | 24/11/2026 | Équipe 06 (DATA + DEV) | Réintégration de Dim_Temps, ajout de code_culture et plafond_gdd_c dans Dim_Culture, alignement complet du schéma SQL avec le schéma en étoile, ajout du jeu de tests automatisés.
+| v1.2 | 24/11/2026 | Équipe 06 (DATA + DEV) | Ajout de code_culture et plafond_gdd_c dans Dim_Culture, alignement complet du schéma SQL avec le schéma en étoile, ajout du jeu de tests automatisés.|
+| v1.3 | 25/11/2026 | Équipe 06 (DATA + DEV) | Ajout de la correspondance entre identifiants métier et clés techniques et harmonisation finale du contrat avec le schéma en étoile et le modèle physique.|
 
 ---
 
@@ -47,7 +48,7 @@ La base de données partagée est déployée sur **AlwaysData** (MySQL). Les val
 | Dimension | Colonnes utilisées | Remarque |
 |---|---|---|
 | `Dim_Culture` | `id_culture`, `code_culture`, `nom_culture`, `t_base_c`, `plafond_gdd_c`, `gdd_maturite_cj`, `seuil_gel_c`, `seuil_stress_thermique_c`, `besoin_eau_mm` | `plafond_gdd_c` : `30` pour le maïs, `null` pour les autres cultures. `gdd_maturite_cj` peut être `null` (ex. olivier). |
-| `Dim_Commune` | `code_insee`, `latitude` | `code_insee` en `VARCHAR(5)` (certains codes commencent par `0`). La latitude (en degrés décimaux, nord positif) sert au calcul de l'ET0. |
+| `Dim_Commune` | `code_insee`, `latitude`, `longitude` | `code_insee` en `VARCHAR(5)` (certains codes commencent par `0`). La latitude (en degrés décimaux, nord positif) sert au calcul de l'ET0. |
 | `Dim_Temps` | `id_temps`, `horizon`, `annee_debut`, `annee_fin` | La dimension Temps représente les horizons du projet (reference, 2030, 2040, 2050). |
 | `Dim_Modele` | `id_modele`, `nom_modele` | Les 7 modèles climatiques de l'API Open-Meteo. |
 
@@ -227,6 +228,43 @@ Si le calcul ne peut pas aboutir, la fonction retourne un objet d'erreur normali
 Si **l'API Open-Meteo** échoue (timeout, erreur HTTP), DEV n'appelle pas `calculer_indicateur` et affiche « données indisponibles ».
 
 ---
+### Correspondance avec les clés techniques
+
+La fonction `calculer_indicateur()` manipule des identifiants métier sous forme de texte :
+
+- code_culture (ex. `"vigne"`)
+- modele (ex. `"MRI_AGCM3_2_S"`)
+- horizon (ex. `"2050"`)
+
+Le résultat retourné par DATA conserve ces identifiants métier afin de rester lisible et indépendant de la structure physique de la base.
+
+Avant l'enregistrement dans `Fact_Indicateur`, DEV effectue la résolution des clés techniques à partir des dimensions :
+
+| Identifiant métier | Clé technique |
+|-------------------|---------------|
+| code_culture | id_culture |
+| modele | id_modele |
+| horizon | id_temps |
+
+Cette résolution est réalisée en consultant :
+
+- `Dim_Culture`
+- `Dim_Modele`
+- `Dim_Temps`
+
+Ainsi :
+
+```text
+"vigne" → id_culture = 1
+"MRI_AGCM3_2_S" → id_modele = 3
+"2050" → id_temps = 4
+```
+
+(valeurs données à titre d'exemple)
+
+DATA manipule les identifiants métier ; DEV est responsable de la conversion vers les clés techniques nécessaires à l'enregistrement dans la base de données.
+
+---
 
 ## Partie E — Structure de `Fact_Indicateur`, identité RGPD et persistance
 
@@ -246,7 +284,9 @@ Conformément au schéma en étoile, **une ligne de `Fact_Indicateur` stocke le 
 | `unite` | `VARCHAR(20)` | `NULL` | Unité de mesure |
 | `verdict` | `VARCHAR(20)` | `NULL` | Verdict calculé |
 | `nb_annees` | `INT` | `NOT NULL` | Nombre d'années prises en compte |
-| `nb_jours_ignores` | `INT` | `NOT NULL` | Nombre de jours ignorés ||
+| `nb_jours_ignores` | `INT` | `NOT NULL` | Nombre de jours ignorés |
+| `date_calcul` | `DATETIME` | `NOT NULL` | Horodatage du calcul (traçabilité)
+
 
 ### Enregistrement (Upsert)
 DEV enregistre chaque résultat retourné par DATA via la requête fournie par DATA (aucun doublon sur la clé primaire composite) :
