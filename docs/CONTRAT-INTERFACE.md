@@ -12,7 +12,7 @@ Ce document définit **ce que DEV et DATA s'échangent** et **comment** : les co
 |---|---|---|---|
 | v1.0 | 12/11/2026 | Équipe 06 | Version initiale du contrat d'interface (J2) |
 | v1.1 | 22/11/2026 | Équipe 06 (DATA + DEV) | Uniformisation `code_insee`, alignement structure `Fact_Indicateur` (moyennes par horizon), ajout des cas limites (année sans gel, canicule, multi-années), validation des décisions |
-| v1.2 | 24/11/2026 | Équipe 06 (DATA + DEV) | Alignement sur le schéma réel `sae_301` (AlwaysData) : `nom_modele` dans `Dim_Modele`, identifiants numériques (`INT`) pour `id_culture` et `id_modele`, collation `utf8mb4_uca1400_ai_ci` sur `code_insee` et clé étrangère vers `Dim_Commune` |
+v1.2 | 24/11/2026 | Équipe 06 (DATA + DEV) | Réintégration de Dim_Temps, ajout de code_culture et plafond_gdd_c dans Dim_Culture, alignement complet du schéma SQL avec le schéma en étoile, ajout du jeu de tests automatisés.
 
 ---
 
@@ -42,15 +42,23 @@ Utilisateur choisit : commune (code_insee) + culture + horizon
 
 ## Ce que le contrat suppose dans la base
 
-La base de données partagée est déployée sur **AlwaysData** (MySQL, base `sae_301`). Les valeurs de `Dim_Culture` sont strictement alignées avec le référentiel sourcé (instituts et dates de référence).
+La base de données partagée est déployée sur **AlwaysData** (MySQL). Les valeurs de `Dim_Culture` sont strictement alignées avec le référentiel sourcé (instituts et dates de référence).
 
 | Dimension | Colonnes utilisées | Remarque |
 |---|---|---|
-| `Dim_Culture` | `id_culture` (`INT`), `t_base_c`, `plafond_gdd_c`, `gdd_maturite_cj`, `seuil_gel_c`, `seuil_stress_thermique_c`, `besoin_eau_mm` | `id_culture` est en `INT`. `plafond_gdd_c` : `30` pour le maïs, `null` pour les autres cultures. `gdd_maturite_cj` peut être `null` (ex. olivier). |
-| `Dim_Commune` | `code_insee`, `latitude` | `code_insee` en `VARCHAR(5)` (`utf8mb4_uca1400_ai_ci`, certains codes commencent par `0`). La latitude (en degrés décimaux, nord positif) sert au calcul de l'ET0. |
-| `Dim_Modele` | `id_modele` (`INT`), `nom_modele` | `id_modele` est en `INT` ; `nom_modele` porte le nom du modèle climatique. |
+| `Dim_Culture` | `id_culture`, `code_culture`, `nom_culture`, `t_base_c`, `plafond_gdd_c`, `gdd_maturite_cj`, `seuil_gel_c`, `seuil_stress_thermique_c`, `besoin_eau_mm` | `plafond_gdd_c` : `30` pour le maïs, `null` pour les autres cultures. `gdd_maturite_cj` peut être `null` (ex. olivier). |
+| `Dim_Commune` | `code_insee`, `latitude` | `code_insee` en `VARCHAR(5)` (certains codes commencent par `0`). La latitude (en degrés décimaux, nord positif) sert au calcul de l'ET0. |
+| `Dim_Temps` | `id_temps`, `horizon`, `annee_debut`, `annee_fin` | La dimension Temps représente les horizons du projet (reference, 2030, 2040, 2050). |
+| `Dim_Modele` | `id_modele`, `nom_modele` | Les 7 modèles climatiques de l'API Open-Meteo. |
 
-Identifiants des cultures : texte en minuscules, sans accent (`ble_tendre`, `mais_grain`, `tournesol`, `vigne`).
+Identifiants des cultures : texte en minuscules, sans accent :
+
+- `ble_tendre`
+- `mais_grain`
+- `tournesol`
+- `vigne`
+- `pomme_de_terre`
+- `olivier`
 
 ---
 
@@ -226,31 +234,51 @@ Si **l'API Open-Meteo** échoue (timeout, erreur HTTP), DEV n'appelle pas `calcu
 Conformément au schéma en étoile, **une ligne de `Fact_Indicateur` stocke le résultat agrégé (moyenne annuelle sur l'horizon) d'un indicateur**, et **non** des valeurs ou booléens journaliers.
 
 | Colonne | Type SQL | Clé / Contrainte | Description |
-|---|---|---|---|
-| `id_session` | `VARCHAR(32)` | `PK` | Identifiant de session anonyme (cookie, toujours présent) |
-| `id_utilisateur` | `VARCHAR(64)` | `NULL` | Identifiant utilisateur si connecté, sinon `NULL` |
-| `code_insee` | `VARCHAR(5)` | `PK, FK -> Dim_Commune(code_insee)` | Code INSEE de la commune (`utf8mb4_uca1400_ai_ci`) |
-| `id_culture` | `INT` | `PK, FK -> Dim_Culture(id_culture)` | Identifiant entier de la culture |
-| `horizon` | `VARCHAR(20)` | `PK` | `"2030"`, `"2040"`, `"2050"` ou `"reference"` |
-| `id_modele` | `INT` | `PK, FK -> Dim_Modele(id_modele)` | Identifiant entier du modèle climatique |
-| `indicateur` | `VARCHAR(30)` | `PK` | Nom de l'indicateur calculé |
-| `valeur` | `DECIMAL(10,2)` | `NULL` | Moyenne annuelle calculée (`NULL` pour `viabilite`) |
-| `unite` | `VARCHAR(15)` | `NULL` | Unité de mesure |
-| `verdict` | `VARCHAR(20)` | `NULL` | `"viable"`, `"a_risque"`, `"non_viable"` ou `NULL` |
+|----------|----------|----------|----------|
+| `id_session` | `VARCHAR(32)` | `PK` | Identifiant de session |
+| `id_utilisateur` | `VARCHAR(50)` | `NULL` | Utilisateur connecté |
+| `code_insee` | `VARCHAR(5)` | `PK`, `FK` → `Dim_Commune` | Code INSEE de la commune |
+| `id_culture` | `INT` | `PK`, `FK` → `Dim_Culture` | Culture |
+| `id_modele` | `INT` | `PK`, `FK` → `Dim_Modele` | Modèle climatique |
+| `id_temps` | `INT` | `PK`, `FK` → `Dim_Temps` | Horizon temporel |
+| `indicateur` | `VARCHAR(50)` | `PK` | Nom de l'indicateur |
+| `valeur` | `DOUBLE` | `NULL` | Moyenne annuelle calculée |
+| `unite` | `VARCHAR(20)` | `NULL` | Unité de mesure |
+| `verdict` | `VARCHAR(20)` | `NULL` | Verdict calculé |
 | `nb_annees` | `INT` | `NOT NULL` | Nombre d'années prises en compte |
-| `nb_jours_ignores` | `INT` | `NOT NULL` | Nombre de jours écartés (`null`) |
-| `date_calcul` | `DATETIME` | `NOT NULL` | Horodatage du calcul (traçabilité / purge RGPD) |
+| `nb_jours_ignores` | `INT` | `NOT NULL` | Nombre de jours ignorés ||
 
 ### Enregistrement (Upsert)
 DEV enregistre chaque résultat retourné par DATA via la requête fournie par DATA (aucun doublon sur la clé primaire composite) :
 
 ```sql
 INSERT INTO Fact_Indicateur (
-    id_session, id_utilisateur, code_insee, id_culture, horizon, id_modele,
-    indicateur, valeur, unite, verdict, nb_annees, nb_jours_ignores, date_calcul
-) VALUES (
-    :id_session, :id_utilisateur, :code_insee, :id_culture, :horizon, :id_modele,
-    :indicateur, :valeur, :unite, :verdict, :nb_annees, :nb_jours_ignores, NOW()
+    id_session,
+    id_utilisateur,
+    code_insee,
+    id_culture,
+    id_modele,
+    id_temps,
+    indicateur,
+    valeur,
+    unite,
+    verdict,
+    nb_annees,
+    nb_jours_ignores
+)
+VALUES (
+    :id_session,
+    :id_utilisateur,
+    :code_insee,
+    :id_culture,
+    :id_modele,
+    :id_temps,
+    :indicateur,
+    :valeur,
+    :unite,
+    :verdict,
+    :nb_annees,
+    :nb_jours_ignores
 )
 ON DUPLICATE KEY UPDATE
     id_utilisateur = VALUES(id_utilisateur),
@@ -258,11 +286,8 @@ ON DUPLICATE KEY UPDATE
     unite = VALUES(unite),
     verdict = VALUES(verdict),
     nb_annees = VALUES(nb_annees),
-    nb_jours_ignores = VALUES(nb_jours_ignores),
-    date_calcul = NOW();
-
+    nb_jours_ignores = VALUES(nb_jours_ignores);
 ```
----
 
 ### Effacement (Conformité RGPD)
 ```sql
